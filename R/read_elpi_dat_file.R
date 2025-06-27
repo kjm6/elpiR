@@ -9,6 +9,7 @@
 #' @examples read_elpi_data("path/to/your/file.dat")
 
 read_elpi_dat_file <- function(file_path) {
+
   library(readr)
   library(stringr)
   library(dplyr)
@@ -17,9 +18,9 @@ read_elpi_dat_file <- function(file_path) {
   # Read file
   lines <- readLines(file_path)
 
-  # Extract DataOrder headers
+  # Extract headers
   header_str <- str_remove(lines[str_detect(lines, "^DataOrder=")], "^DataOrder=")
-  raw_headers <- str_split(header_str, ",")[[1]]
+  header_list <- str_split(header_str, ",")[[1]]
 
   # Function to make duplicate names unique (e.g. Stage1_raw, Stage1_calc)
   make_unique_names <- function(names_vector) {
@@ -42,7 +43,7 @@ read_elpi_dat_file <- function(file_path) {
     return(new_names)
   }
 
-  headers <- make_unique_names(raw_headers)
+  headers <- make_unique_names(header_list)
 
   # Extract data lines
   data_start <- which(str_detect(lines, "^\\[Data\\]")) + 1
@@ -61,11 +62,13 @@ read_elpi_dat_file <- function(file_path) {
 
   # Clean and convert
   data <- data_raw %>%
-    rename(DateTime = !!sym(datetime_col)) %>%
     mutate(
-      DateTime = parse_datetime(DateTime, format = "%Y/%m/%d %H:%M:%OS"),
-      across(-DateTime, parse_guess)
-    )
+      DateTime_raw = parse_date_time(`DateTime(yyyy/mm/dd hh:mm:ss)`, orders = "Y/m/d H:M:OS"),
+      DateTime = round_date(DateTime_raw, unit = "second")
+    ) %>%
+    select(-`DateTime(yyyy/mm/dd hh:mm:ss)`, -DateTime_raw)
+
+
 
   return(data)
 }
