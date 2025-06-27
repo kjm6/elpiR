@@ -9,8 +9,11 @@
 #' @export
 #'
 #' @examples
-#' files <- c("path/to/file1.dat", "path/to/file2.dat")
-#' combined <- read_multiple_elpi_files(files, add_filename = TRUE)
+#' files_list <- c("path/to/file1.dat", "path/to/file2.dat")
+#' combined <- combine_elpi_files(files_list, add_filename = TRUE)
+
+
+
 combine_elpi_data <- function(file_paths, add_filename = TRUE) {
   library(dplyr)
   library(purrr)
