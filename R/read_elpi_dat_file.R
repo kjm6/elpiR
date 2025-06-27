@@ -8,68 +8,62 @@
 #' @export
 #' @examples read_elpi_data("path/to/your/file.dat")
 
-read_elpi_dat_file <- function(file_path) {
+read_elpi_dat_file<- function(file_path) {
   library(readr)
-  library(stringr)
   library(dplyr)
-  library(purrr)
+  library(stringr)
+  library(tidyr)
+  library(lubridate)
 
-  # Read file
   lines <- readLines(file_path)
 
-  # Extract DataOrder headers
-  header_str <- str_remove(lines[str_detect(lines, "^DataOrder=")], "^DataOrder=")
-  raw_headers <- str_split(header_str, ",")[[1]]
-
-  # Function to make duplicate names unique (e.g. Stage1_raw, Stage1_cal)
-  make_unique_names <- function(names_vector) {
-    counts <- table(names_vector)
-    suffixes <- c("raw", "cal")
-    new_names <- character(length(names_vector))
-    used <- list()
-
-    for (i in seq_along(names_vector)) {
-      name <- names_vector[i]
-      if (counts[name] == 1) {
-        new_names[i] <- name
-      } else {
-        if (is.null(used[[name]])) used[[name]] <- 0
-        used[[name]] <- used[[name]] + 1
-        suffix <- suffixes[used[[name]]] %||% as.character(used[[name]])
-        new_names[i] <- paste0(name, "_", suffix)
-      }
-    }
-    return(new_names)
+  # Extract start date and time from metadata
+  date_line <- str_extract(lines[str_detect(lines, "^Date=")], "\\d{2}/\\d{2}/\\d{4}")
+  time_line <- str_extract(lines[str_detect(lines, "^Time=")], "\\d{2}:\\d{2}:\\d{2}")
+  if (is.na(date_line) || is.na(time_line)) {
+    stop("Start date or time not found in file header.")
   }
 
-  headers <- make_unique_names(raw_headers)
+  start_datetime <- dmy_hms(paste(date_line, time_line))
 
-  # Extract data lines
+  # Extract DataOrder header
+  dataorder_line <- str_remove(lines[str_detect(lines, "^DataOrder=")], "^DataOrder=")
+  raw_headers <- str_split(dataorder_line, "\t|\\s{2,}|\u00A0|\\s+")[[1]] # handles variable spacing
+
+  # Make column names unique
+  headers <- make.unique(raw_headers)
+
+  # Find [Data] section
   data_start <- which(str_detect(lines, "^\\[Data\\]")) + 1
   data_lines <- lines[data_start:length(lines)]
 
-  # Read data as character
+  # Read the data block into a dataframe
   data_raw <- read_delim(
     paste(data_lines, collapse = "\n"),
-    delim = ",",
+    delim = "\t",
     col_names = headers,
     col_types = cols(.default = col_character())
   )
 
-  # Detect datetime column
-  datetime_col <- headers[str_detect(headers, "DateTime")][1]
+  # Convert Time column to POSIXct using start_datetime
+  # Assume first column is relative time (mm:ss.s)
+  time_strings <- data_raw[[1]]
 
-  # Clean and convert
-  data <- data_raw %>%
-    rename(DateTime = !!sym(datetime_col)) %>%
+  # Convert relative times to seconds
+  time_seconds <- str_split_fixed(time_strings, ":", 2) %>%
+    as.data.frame() %>%
     mutate(
-      DateTime = parse_datetime(DateTime, format = "%Y/%m/%d %H:%M:%OS"),
-      across(-DateTime, parse_guess)
+      minutes = as.numeric(V1),
+      seconds = as.numeric(V2),
+      total_seconds = minutes * 60 + seconds
     )
 
-  if (all(is.na(data$DateTime))) {
-    warning("Failed to parse DateTime values. Check datetime format.")
-  }
+  data <- data_raw %>%
+    mutate(
+      DateTime = start_datetime + seconds(time_seconds$total_seconds)
+    ) %>%
+    select(DateTime, everything(), -1) %>%
+    mutate(across(-DateTime, parse_guess))
 
   return(data)
 }
