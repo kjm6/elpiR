@@ -55,9 +55,11 @@ read_elpi_dat_file <- function(file_path) {
     select(-all_of(datetime_col), -DateTime_raw)
 
   # Convert applicable columns to numeric
-  data <- data %>%
+  data <- data_raw %>%
     mutate(across(
-      where(~ all(str_detect(., "^[-+eE0-9.]+$"))),
+      where(function(col) {
+        is.character(col) && all(str_detect(col[!is.na(col)], "^[-+eE0-9.]+$"))
+      }),
       as.numeric
     ))
 
