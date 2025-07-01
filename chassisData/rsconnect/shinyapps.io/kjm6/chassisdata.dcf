@@ -1,0 +1,12 @@
+name: chassisdata
+title: chassisData
+username: kjm6
+account: kjm6
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 15003256
+bundleId: 10545089
+url: https://kjm6.shinyapps.io/chassisdata/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
